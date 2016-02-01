@@ -4,8 +4,11 @@ import sklearn.naive_bayes
 import sklearn.linear_model
 import nltk
 import random
+from sklearn.naive_bayes import BernoulliNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import GaussianNB
 random.seed(0)
-from gensim.models.doc2vec import LabeledSentence, Doc2Vec
+from gensim.models.doc2vec import LabeledSentence, Doc2Vec, TaggedDocument
 from collections import Counter
 #nltk.download("stopwords")          # Download the stop words from nltk
 
@@ -25,18 +28,18 @@ def main():
 
     if method == 0:
         train_pos_vec, train_neg_vec, test_pos_vec, test_neg_vec = feature_vecs_NLP(train_pos, train_neg, test_pos, test_neg)
-    #    nb_model, lr_model = build_models_NLP(train_pos_vec, train_neg_vec)
+        nb_model, lr_model = build_models_NLP(train_pos_vec, train_neg_vec)
     if method == 1:
         train_pos_vec, train_neg_vec, test_pos_vec, test_neg_vec = feature_vecs_DOC(train_pos, train_neg, test_pos, test_neg)
-    #    nb_model, lr_model = build_models_DOC(train_pos_vec, train_neg_vec)
-    """print "Naive Bayes"
-                print "-----------"
-                evaluate_model(nb_model, test_pos_vec, test_neg_vec, True)
-                print ""
-                print "Logistic Regression"
-                print "-------------------"
-                evaluate_model(lr_model, test_pos_vec, test_neg_vec, True)
-            """
+        nb_model, lr_model = build_models_DOC(train_pos_vec, train_neg_vec)
+    print "Naive Bayes"
+    print "-----------"
+    evaluate_model(nb_model, test_pos_vec, test_neg_vec, True)
+    print ""
+    print "Logistic Regression"
+    print "-------------------"
+    evaluate_model(lr_model, test_pos_vec, test_neg_vec, True)
+
 
 
 def load_data(path_to_dir):
@@ -129,7 +132,21 @@ def feature_vecs_DOC(train_pos, train_neg, test_pos, test_neg):
     """
     # Doc2Vec requires LabeledSentence objects as input.
     # Turn the datasets from lists of words to lists of LabeledSentence objects.
-    # YOUR CODE HERE
+    def create_labeled_sentences(data,label):
+      temp = []
+      for i,row in enumerate(data):
+        temp.append(TaggedDocument(words=row, tags =[label+str(i)]))
+      return temp
+    def transform(model, label,data):
+      out = []
+      for i, row in enumerate(data):
+          out.append(model.docvecs[label+str(i)])
+      return out
+
+    labeled_train_pos=create_labeled_sentences(train_pos,"TRAIN_POS_")
+    labeled_train_neg=create_labeled_sentences(train_neg,"TRAIN_NEG_")
+    labeled_test_pos=create_labeled_sentences(test_pos,"TEST_POS_")
+    labeled_test_neg=create_labeled_sentences(test_neg,"TEST_NEG_")
 
     # Initialize model
     model = Doc2Vec(min_count=1, window=10, size=100, sample=1e-4, negative=5, workers=4)
@@ -144,7 +161,10 @@ def feature_vecs_DOC(train_pos, train_neg, test_pos, test_neg):
         model.train(sentences)
 
     # Use the docvecs function to extract the feature vectors for the training and test data
-    # YOUR CODE HERE
+    train_pos_vec = transform(model,"TRAIN_POS_",train_pos)
+    train_neg_vec = transform(model,"TRAIN_NEG_",train_neg)
+    test_pos_vec = transform(model, "TEST_POS_", test_pos)
+    test_neg_vec = transform(model,"TEST_NEG_",test_neg)
 
     # Return the four feature vectors
     return train_pos_vec, train_neg_vec, test_pos_vec, test_neg_vec
@@ -160,7 +180,13 @@ def build_models_NLP(train_pos_vec, train_neg_vec):
     # Use sklearn's BernoulliNB and LogisticRegression functions to fit two models to the training data.
     # For BernoulliNB, use alpha=1.0 and binarize=None
     # For LogisticRegression, pass no parameters
-    # YOUR CODE HERE
+    train_data = train_pos_vec+train_neg_vec
+
+    nb_model = BernoulliNB(alpha=1.0, binarize=None)
+    nb_model.fit(train_data, Y)
+
+    lr_model = LogisticRegression()
+    lr_model.fit(train_data, Y)
 
     return nb_model, lr_model
 
@@ -174,7 +200,13 @@ def build_models_DOC(train_pos_vec, train_neg_vec):
 
     # Use sklearn's GaussianNB and LogisticRegression functions to fit two models to the training data.
     # For LogisticRegression, pass no parameters
-    # YOUR CODE HERE
+    train_data = train_pos_vec + train_neg_vec
+
+    nb_model = GaussianNB()
+    nb_model.fit(train_data, Y)
+
+    lr_model = LogisticRegression()
+    lr_model.fit(train_data,Y)
 
     return nb_model, lr_model
 
@@ -185,7 +217,23 @@ def evaluate_model(model, test_pos_vec, test_neg_vec, print_confusion=False):
     Prints the confusion matrix and accuracy of the model.
     """
     # Use the predict function and calculate the true/false positives and true/false negative.
-    # YOUR CODE HERE
+    tp, fn, fp, tn = 0, 0, 0, 0
+    predict_pos = model.predict(test_pos_vec)
+    predict_neg = model.predict(test_neg_vec)
+
+    for each in predict_pos:
+      if each == "pos":
+        tp +=1
+      else:
+        fn +=1
+
+    for each in predict_neg:
+      if each == "neg":
+        tn +=1
+      else:
+        fp +=1
+
+    accuracy = (tp+tn)/float(tp+tn+fn+fp)
 
     if print_confusion:
         print "predicted:\tpos\tneg"
@@ -198,8 +246,3 @@ def evaluate_model(model, test_pos_vec, test_neg_vec, print_confusion=False):
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
